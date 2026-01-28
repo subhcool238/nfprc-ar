@@ -4,102 +4,272 @@
     <script src="https://aframe.io/releases/1.6.0/aframe.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-aframe.prod.js"></script>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>NFPRC AR - Final Top-Down</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>NFPRC AR - Final Sync</title>
     
     <style>
+        body { margin: 0; overflow: hidden; font-family: sans-serif; }
+        
         #overlay, #loadingOverlay {
             position: fixed; top: 0; left: 0; width: 100%; height: 100%;
             display: flex; flex-direction: column; justify-content: center; align-items: center;
-            color: white; font-family: sans-serif; text-align: center; z-index: 9999;
+            color: white; text-align: center; z-index: 9999;
         }
         #overlay { background: rgba(0,0,0,0.95); }
         #loadingOverlay { background: #002b5b; display: none; }
         
-        /* 2D FLOATING PLAY BUTTON */
         #floatingBtn {
-            position: fixed; bottom: 15px; left: 50%; transform: translateX(-50%);
+            position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%);
             padding: 15px 40px; font-size: 18px; border-radius: 50px; 
             border: 2px solid white; background: #002b5b; color: white;
             font-weight: bold; cursor: pointer; display: none; z-index: 1000;
         }
 
-        /* 2D TOP MENU (Triggered by Top-to-Bottom Swipe) */
+        #sideVenueBtn {
+            position: fixed; right: 20px; top: 50%; 
+            padding: 15px 10px; font-size: 14px; border-radius: 10px;
+            border: 2px solid white; background: #002b5b; color: white;
+            font-weight: bold; cursor: pointer; display: none; z-index: 1003;
+            writing-mode: vertical-rl; text-orientation: mixed;
+            box-shadow: -4px 0 15px rgba(0,0,0,0.4);
+        }
+
         #topLinksMenu {
-            position: fixed; top: -100px; /* Hidden above by default */
-            left: 0; width: 100%; padding: 20px 0;
-            background: rgba(0, 43, 91, 0.95); 
-            display: flex; justify-content: space-around; align-items: center; 
-            z-index: 1001; transition: top 0.3s ease-out; /* Smooth slide-down */
+            position: fixed; top: -150px; left: 0; width: 100%; padding: 20px 0;
+            background: rgba(0, 43, 91, 0.95); display: flex; justify-content: space-evenly; 
+            align-items: center; z-index: 1001; transition: top 0.3s ease-out;
             border-bottom: 2px solid white;
         }
         .socialLink {
-            color: white; text-decoration: none; font-weight: bold; 
-            font-size: 14px; padding: 10px 15px; border: 1px solid white; border-radius: 5px;
+            color: white; text-decoration: none; font-weight: bold; font-size: 14px; 
+            padding: 10px 20px; border: 1px solid white; border-radius: 20px;
+            background: rgba(255,255,255,0.1);
         }
 
-        #startBtn {
-            padding: 20px 40px; font-size: 20px; border-radius: 50px; 
-            border: none; background: #002b5b; color: white; cursor: pointer; font-weight: bold;
-        }
-        .spinner {
-            width: 40px; height: 40px; border: 4px solid rgba(255,255,255,0.3);
-            border-radius: 50%; border-top-color: #fff;
-            animation: spin 1s ease-in-out infinite; margin-bottom: 15px;
-        }
+        #startBtn { padding: 20px 40px; font-size: 20px; border-radius: 50px; border: none; background: #002b5b; color: white; cursor: pointer; font-weight: bold; }
+        .spinner { width: 40px; height: 40px; border: 4px solid rgba(255,255,255,0.3); border-radius: 50%; border-top-color: #fff; animation: spin 1s ease-in-out infinite; margin-bottom: 15px; }
         @keyframes spin { to { transform: rotate(360deg); } }
     </style>
+
+    <script>
+      // 1. ADVANCED RECTANGLE
+      AFRAME.registerComponent('rounded-rect', {
+        schema: { 
+            width: {type: 'number'}, 
+            height: {type: 'number'}, 
+            radius: {type: 'array', default: [0.05, 0.05, 0.05, 0.05]}, 
+            color: {type: 'color', default: 'white'} 
+        },
+        update: function () {
+          if(this.mesh) this.el.object3D.remove(this.mesh);
+          const w = 1024; const h = (this.data.height / this.data.width) * w; // Increased res
+          const canvas = document.createElement('canvas');
+          canvas.width = w; canvas.height = h;
+          const ctx = canvas.getContext('2d');
+          ctx.fillStyle = this.data.color;
+          const radii = this.data.radius.map(r => r * (w / this.data.width));
+          ctx.beginPath(); ctx.roundRect(0, 0, w, h, radii); ctx.fill();
+          const texture = new THREE.CanvasTexture(canvas);
+          texture.anisotropy = 16; // Sharper texture
+          const material = new THREE.MeshBasicMaterial({ map: texture, transparent: true });
+          const geometry = new THREE.PlaneGeometry(this.data.width, this.data.height);
+          this.mesh = new THREE.Mesh(geometry, material);
+          this.el.setObject3D('mesh', this.mesh);
+        }
+      });
+
+      // 2. ADVANCED MASK
+      AFRAME.registerComponent('rounded-mask', {
+        schema: { 
+            width: {type: 'number'}, 
+            height: {type: 'number'}, 
+            radius: {type: 'array', default: [0.05, 0.05, 0.05, 0.05]} 
+        },
+        update: function () {
+          if(this.mesh) this.el.object3D.remove(this.mesh); 
+          const w = 1024; const h = (this.data.height / this.data.width) * w; // Increased res
+          const canvas = document.createElement('canvas');
+          canvas.width = w; canvas.height = h;
+          const ctx = canvas.getContext('2d');
+          ctx.fillStyle = 'white'; ctx.fillRect(0, 0, w, h);
+          ctx.globalCompositeOperation = 'destination-out'; 
+          const radii = this.data.radius.map(r => r * (w / this.data.width));
+          ctx.beginPath(); ctx.roundRect(0, 0, w, h, radii); ctx.fill();
+          const texture = new THREE.CanvasTexture(canvas);
+          texture.anisotropy = 16;
+          const material = new THREE.MeshBasicMaterial({ map: texture, transparent: true });
+          const geometry = new THREE.PlaneGeometry(this.data.width, this.data.height);
+          this.mesh = new THREE.Mesh(geometry, material);
+          this.el.setObject3D('mesh', this.mesh);
+        }
+      });
+    </script>
 </head>
 
 <body>
     <div id="overlay">
         <h2>NFPRC AR Experience</h2>
         <button id="startBtn">TAP TO ENTER AR</button>
+        <p style="margin-top: 20px; opacity: 0.7; font-size: 14px; line-height: 1.6;">
+            ↔ Swipe LEFT/RIGHT for Venue<br>
+            ↕ Swipe DOWN/UP for Links
+        </p>
     </div>
 
     <div id="loadingOverlay"><div class="spinner"></div><p>Stabilizing View...</p></div>
-
+    <button id="sideVenueBtn">📍 GOOGLE MAPS</button>
+    <button id="floatingBtn">PLAY</button>
     <div id="topLinksMenu">
-        <a href="https://nationfirstlr.substack.com" target="_blank" class="socialLink">INFO</a>
-        <a href="https://x.com/nfprc_ind" target="_blank" class="socialLink">X</a>
+        <a href="https://nationfirstlr.substack.com" target="_blank" class="socialLink">Substack</a>
+        <a href="https://x.com/nfprc_ind" target="_blank" class="socialLink">X (Twitter)</a>
         <a href="mailto:workshops@nationfirstpolicy.org" class="socialLink">EMAIL</a>
     </div>
 
-    <button id="floatingBtn">PLAY</button>
-
-    <a-scene 
-    mindar-image="imageTargetSrc: ./targets.mind; autoStart: false; filterMinCF:0.0001; filterBeta: 0.001;" 
-    vr-mode-ui="enabled: false" 
-    device-orientation-permission-ui="enabled: false">
+    <a-scene mindar-image="imageTargetSrc: ./targets.mind; autoStart: false; filterMinCF: 0.01; filterBeta: 0.01;" 
+             vr-mode-ui="enabled: false" device-orientation-permission-ui="enabled: false">
         <a-assets>
             <video id="vid" src="./your-video.mp4" preload="auto" crossorigin="anonymous" playsinline webkit-playsinline muted></video>
+            <img id="venueImg" src="./venue.jpg">
         </a-assets>
-
         <a-camera position="0 0 0" look-controls="enabled: false">
             <a-cursor raycaster="objects: .clickable" cursor="fuse: false; rayOrigin: mouse;"></a-cursor>
         </a-camera>
 
         <a-entity id="ar-target" mindar-image-target="targetIndex: 0">
-            <a-video id="videoPlane" src="#vid" class="clickable" 
-                     position="-0.01 -0.32 0.01" width="0.9" height="0.5">
-            </a-video>
+            <a-entity id="videoGroup">
+                <a-entity id="vidBg" position="0 0 0"></a-entity>
+                <a-video id="vidPlane" src="#vid" class="clickable" position="0 0 0.01"></a-video>
+                <a-entity id="vidMask" position="0 0 0.02"></a-entity>
+            </a-entity>
+            <a-entity id="venueGroup" visible="false">
+                <a-entity id="venueBg" position="0 0 0"></a-entity>
+                <a-image id="venueImage" src="#venueImg" position="0 0 0.01"></a-image>
+                <a-entity id="venueMask" position="0 0 0.02"></a-entity>
+                <a-entity id="venueTagBg" position="0 0 0.01"></a-entity>
+                <a-text id="venueText" value="VENUE: INDIA HABITAT CENTRE" align="center" color="white" position="0 0 0.02"></a-text>
+            </a-entity>
         </a-entity>
     </a-scene>
 
     <script>
+        // ==================================================
+        // 🎛️ MASTER CONFIGURATION
+        // ==================================================
+        const CONFIG = {
+            
+            video: {
+                x: -0.009, y: -0.33,
+                width: 0.93, height: 0.54,
+                border: 0.01,
+                radius: [0.03, 0.03, 0.03, 0.03]
+            },
+
+            venue: {
+                x: -0.009, y: 0.32,
+                imgWidth: 0.68, imgHeight: 0.36,
+                border: 0.015,
+                // [TL, TR, BR, BL] - Top corners round, Bottom corners sharp
+                imgRadius: [0.04, 0.04, 0, 0] 
+            },
+
+            tag: {
+                height: 0.08,
+                color: '#002b5b',
+                // Bottom corners round, Top corners sharp
+                radius: [0, 0, 0.05, 0.05],
+                textScale: 1.3,     
+                textContent: "VENUE: INDIA HABITAT CENTRE"
+            },
+
+            sideButton: { right: '20px', top: '30%' }
+        };
+
+        // ==================================================
+        // ⚙️ SYSTEM LOGIC
+        // ==================================================
+        
+        function applyMasterConfig() {
+            const btn = document.querySelector('#sideVenueBtn');
+            btn.style.right = CONFIG.sideButton.right;
+            btn.style.top = CONFIG.sideButton.top;
+
+            // --- VIDEO SETUP ---
+            const vidGroup = document.querySelector('#videoGroup');
+            const vidBg = document.querySelector('#vidBg');
+            const vidPlane = document.querySelector('#vidPlane');
+            const vidMask = document.querySelector('#vidMask');
+
+            vidGroup.setAttribute('position', `${CONFIG.video.x} ${CONFIG.video.y} 0`);
+            const vBgW = CONFIG.video.width + (CONFIG.video.border * 2);
+            const vBgH = CONFIG.video.height + (CONFIG.video.border * 2);
+            const vRadius = CONFIG.video.radius.join(', ');
+            
+            vidBg.setAttribute('rounded-rect', `width: ${vBgW}; height: ${vBgH}; radius: ${vRadius}; color: white`);
+            vidPlane.setAttribute('width', CONFIG.video.width);
+            vidPlane.setAttribute('height', CONFIG.video.height);
+            vidMask.setAttribute('rounded-mask', `width: ${CONFIG.video.width}; height: ${CONFIG.video.height}; radius: ${vRadius}`);
+
+            // --- VENUE SETUP ---
+            const venueGroup = document.querySelector('#venueGroup');
+            const venueBg = document.querySelector('#venueBg');
+            const venueImage = document.querySelector('#venueImage');
+            const venueMask = document.querySelector('#venueMask');
+            const venueTagBg = document.querySelector('#venueTagBg');
+            const venueText = document.querySelector('#venueText');
+
+            venueGroup.setAttribute('position', `${CONFIG.venue.x} ${CONFIG.venue.y} 0.05`);
+
+            const imgW = CONFIG.venue.imgWidth;
+            const imgH = CONFIG.venue.imgHeight;
+            const border = CONFIG.venue.border;
+            const tagH = CONFIG.tag.height;
+            const cardW = imgW + (border * 2);
+            const cardH = imgH + tagH + (border * 2); 
+            
+            // --- FIX: BACKGROUND RADIUS CALCULATION ---
+            // The background needs to match the image rounding on top, and tag rounding on bottom.
+            // We construct the radius array dynamically based on your config.
+            const bgTL = CONFIG.venue.imgRadius[0] + border; 
+            const bgTR = CONFIG.venue.imgRadius[1] + border;
+            const bgBR = CONFIG.tag.radius[2] + border;
+            const bgBL = CONFIG.tag.radius[3] + border;
+            const bgRadiusStr = `${bgTL}, ${bgTR}, ${bgBR}, ${bgBL}`;
+
+            venueBg.setAttribute('rounded-rect', `width: ${cardW}; height: ${cardH}; radius: ${bgRadiusStr}; color: white`);
+
+            // Image Setup
+            const imgY = (tagH / 2); 
+            venueImage.setAttribute('position', `0 ${imgY} 0.01`);
+            venueImage.setAttribute('width', imgW);
+            venueImage.setAttribute('height', imgH);
+            const iRadius = CONFIG.venue.imgRadius.join(', ');
+            venueMask.setAttribute('position', `0 ${imgY} 0.02`);
+            venueMask.setAttribute('rounded-mask', `width: ${imgW}; height: ${imgH}; radius: ${iRadius}`);
+
+            // Tag Setup
+            const snapY = (imgY - (imgH/2)) - (tagH/2);
+            const tRadius = CONFIG.tag.radius.join(', ');
+            venueTagBg.setAttribute('position', `0 ${snapY} 0.01`);
+            venueTagBg.setAttribute('rounded-rect', `width: ${imgW}; height: ${tagH}; radius: ${tRadius}; color: ${CONFIG.tag.color}`);
+            
+            venueText.setAttribute('position', `0 ${snapY} 0.02`);
+            venueText.setAttribute('value', CONFIG.tag.textContent);
+            const wrap = 40 / CONFIG.tag.textScale; 
+            venueText.setAttribute('wrapCount', wrap);
+            venueText.setAttribute('width', imgW);
+        }
+
+        document.addEventListener('DOMContentLoaded', applyMasterConfig);
+
+        // --- APP LOGIC ---
         const startBtn = document.querySelector('#startBtn'), floatingBtn = document.querySelector('#floatingBtn');
         const video = document.querySelector("#vid"), targetEl = document.querySelector("#ar-target");
+        const venueGroup = document.querySelector('#venueGroup'), sideVenueBtn = document.querySelector('#sideVenueBtn');
         const topLinksMenu = document.querySelector('#topLinksMenu');
 
         const toggleVideo = () => {
-            if (video.paused) {
-                video.muted = false; 
-                video.play();
-                floatingBtn.innerText = "PAUSE";
-            } else {
-                video.pause();
-                floatingBtn.innerText = "PLAY";
-            }
+            if (video.paused) { video.muted = false; video.play(); floatingBtn.innerText = "PAUSE"; }
+            else { video.pause(); floatingBtn.innerText = "PLAY"; }
         };
 
         startBtn.addEventListener('click', () => {
@@ -115,29 +285,33 @@
         });
 
         floatingBtn.addEventListener('click', toggleVideo);
-        document.querySelector("#videoPlane").addEventListener('click', toggleVideo);
-        
-        targetEl.addEventListener("targetFound", () => { 
-            floatingBtn.style.display = 'block';
-        });
+        sideVenueBtn.addEventListener('click', () => { window.open('https://maps.app.goo.gl/Mkx7hyUkjHbfzxkV8', '_blank'); });
 
+        targetEl.addEventListener("targetFound", () => { floatingBtn.style.display = 'block'; });
         targetEl.addEventListener("targetLost", () => { 
             floatingBtn.style.display = 'none';
-            topLinksMenu.style.top = '-100px'; // Hide menu on tracking loss
+            venueGroup.setAttribute("visible", false);
+            sideVenueBtn.style.display = 'none';
+            topLinksMenu.style.top = '-150px'; 
             video.pause(); 
         });
 
-        // UPDATED: VERTICAL SWIPE LOGIC (Top-to-Bottom)
-        let touchstartY = 0, touchendY = 0;
-        document.addEventListener('touchstart', e => touchstartY = e.changedTouches[0].screenY );
+        // GESTURES
+        let touchstartX = 0, touchstartY = 0;
+        document.addEventListener('touchstart', e => { touchstartX = e.changedTouches[0].screenX; touchstartY = e.changedTouches[0].screenY; });
         document.addEventListener('touchend', e => { 
-            touchendY = e.changedTouches[0].screenY;
-            
-            // SWIPE DOWN (Top-to-Bottom) to Show
-            if (touchendY - touchstartY > 70) topLinksMenu.style.top = '0px';  
-            
-            // SWIPE UP (Bottom-to-Top) to Hide
-            if (touchstartY - touchendY > 70) topLinksMenu.style.top = '-100px'; 
+            const diffX = e.changedTouches[0].screenX - touchstartX;
+            const diffY = e.changedTouches[0].screenY - touchstartY;
+            if (Math.abs(diffX) > Math.abs(diffY)) {
+                if (Math.abs(diffX) > 50) {
+                    const isVisible = venueGroup.getAttribute('visible');
+                    venueGroup.setAttribute("visible", !isVisible);
+                    sideVenueBtn.style.display = !isVisible ? 'block' : 'none';
+                }
+            } else {
+                if (diffY > 50) topLinksMenu.style.top = '0px'; 
+                if (diffY < -50) topLinksMenu.style.top = '-150px'; 
+            }
         });
     </script>
 </body>
