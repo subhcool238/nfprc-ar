@@ -5,26 +5,41 @@
     <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-aframe.prod.js"></script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>NFPRC AR - Final Sync</title>
+    <title>NFPRC AR - Instant</title>
     
     <style>
         body { margin: 0; overflow: hidden; font-family: sans-serif; }
         
-        #overlay, #loadingOverlay { 
-    background: #002b5b; 
-    display: flex; /* KEY CHANGE: Visible immediately on load */
-}
-        
-        #overlay { background: rgba(0,0,0,0.95); }
-        #loadingOverlay { background: #002b5b; display: none; }
-        
+        /* SINGLE UNIFIED OVERLAY */
+        #overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            display: flex; flex-direction: column; justify-content: center; align-items: center;
+            background: #002b5b; z-index: 9999;
+            color: white; text-align: center;
+        }
+
+        .spinner {
+            width: 40px; height: 40px; border: 4px solid rgba(255,255,255,0.3);
+            border-radius: 50%; border-top-color: #fff;
+            animation: spin 1s ease-in-out infinite; margin-bottom: 15px;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        #startBtn { 
+            padding: 15px 40px; font-size: 18px; border-radius: 50px; 
+            border: 2px solid white; background: transparent; color: white; 
+            cursor: pointer; font-weight: bold;
+            display: none; /* Hidden until Ready */
+            margin-top: 10px;
+        }
+
+        /* APP UI */
         #floatingBtn {
             position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%);
             padding: 15px 40px; font-size: 18px; border-radius: 50px; 
             border: 2px solid white; background: #002b5b; color: white;
             font-weight: bold; cursor: pointer; display: none; z-index: 1000;
         }
-
         #sideVenueBtn {
             position: fixed; right: 20px; top: 50%; 
             padding: 15px 10px; font-size: 14px; border-radius: 10px;
@@ -33,7 +48,6 @@
             writing-mode: vertical-rl; text-orientation: mixed;
             box-shadow: -4px 0 15px rgba(0,0,0,0.4);
         }
-
         #topLinksMenu {
             position: fixed; top: -150px; left: 0; width: 100%; padding: 20px 0;
             background: rgba(0, 43, 91, 0.95); display: flex; justify-content: space-evenly; 
@@ -45,62 +59,38 @@
             padding: 10px 20px; border: 1px solid white; border-radius: 20px;
             background: rgba(255,255,255,0.1);
         }
-
-#startBtn { 
-    padding: 20px 40px; font-size: 20px; border-radius: 50px; 
-    border: none; background: #002b5b; color: white; 
-    cursor: pointer; font-weight: bold;
-    display: none; /* KEY CHANGE: Hidden until camera is ready */
-}        .spinner { width: 40px; height: 40px; border: 4px solid rgba(255,255,255,0.3); border-radius: 50%; border-top-color: #fff; animation: spin 1s ease-in-out infinite; margin-bottom: 15px; }
-        @keyframes spin { to { transform: rotate(360deg); } }
     </style>
 
     <script>
-      // 1. ADVANCED RECTANGLE
       AFRAME.registerComponent('rounded-rect', {
-        schema: { 
-            width: {type: 'number'}, 
-            height: {type: 'number'}, 
-            radius: {type: 'array', default: [0.05, 0.05, 0.05, 0.05]}, 
-            color: {type: 'color', default: 'white'} 
-        },
+        schema: { width: {type: 'number'}, height: {type: 'number'}, radius: {type: 'array', default: [0.05]}, color: {type: 'color', default: 'white'} },
         update: function () {
           if(this.mesh) this.el.object3D.remove(this.mesh);
-          const w = 1024; const h = (this.data.height / this.data.width) * w; // Increased res
-          const canvas = document.createElement('canvas');
-          canvas.width = w; canvas.height = h;
+          const w = 512; const h = (this.data.height / this.data.width) * w;
+          const canvas = document.createElement('canvas'); canvas.width = w; canvas.height = h;
           const ctx = canvas.getContext('2d');
           ctx.fillStyle = this.data.color;
           const radii = this.data.radius.map(r => r * (w / this.data.width));
           ctx.beginPath(); ctx.roundRect(0, 0, w, h, radii); ctx.fill();
-          const texture = new THREE.CanvasTexture(canvas);
-          texture.anisotropy = 16; // Sharper texture
+          const texture = new THREE.CanvasTexture(canvas); texture.anisotropy = 16;
           const material = new THREE.MeshBasicMaterial({ map: texture, transparent: true });
           const geometry = new THREE.PlaneGeometry(this.data.width, this.data.height);
           this.mesh = new THREE.Mesh(geometry, material);
           this.el.setObject3D('mesh', this.mesh);
         }
       });
-
-      // 2. ADVANCED MASK
       AFRAME.registerComponent('rounded-mask', {
-        schema: { 
-            width: {type: 'number'}, 
-            height: {type: 'number'}, 
-            radius: {type: 'array', default: [0.05, 0.05, 0.05, 0.05]} 
-        },
+        schema: { width: {type: 'number'}, height: {type: 'number'}, radius: {type: 'array', default: [0.05]} },
         update: function () {
           if(this.mesh) this.el.object3D.remove(this.mesh); 
-          const w = 1024; const h = (this.data.height / this.data.width) * w; // Increased res
-          const canvas = document.createElement('canvas');
-          canvas.width = w; canvas.height = h;
+          const w = 512; const h = (this.data.height / this.data.width) * w;
+          const canvas = document.createElement('canvas'); canvas.width = w; canvas.height = h;
           const ctx = canvas.getContext('2d');
           ctx.fillStyle = 'white'; ctx.fillRect(0, 0, w, h);
           ctx.globalCompositeOperation = 'destination-out'; 
           const radii = this.data.radius.map(r => r * (w / this.data.width));
           ctx.beginPath(); ctx.roundRect(0, 0, w, h, radii); ctx.fill();
-          const texture = new THREE.CanvasTexture(canvas);
-          texture.anisotropy = 16;
+          const texture = new THREE.CanvasTexture(canvas); texture.anisotropy = 16;
           const material = new THREE.MeshBasicMaterial({ map: texture, transparent: true });
           const geometry = new THREE.PlaneGeometry(this.data.width, this.data.height);
           this.mesh = new THREE.Mesh(geometry, material);
@@ -112,7 +102,8 @@
 
 <body>
     <div id="overlay">
-        <h2>NFPRC AR Experience</h2>
+        <div class="spinner" id="loadingSpinner"></div>
+        <p id="statusText" style="font-weight:bold; margin-bottom:20px">Initializing Camera...</p>
         <button id="startBtn">TAP TO ENTER AR</button>
         <p style="margin-top: 20px; opacity: 0.7; font-size: 14px; line-height: 1.6;">
             ↔ Swipe LEFT/RIGHT for Venue<br>
@@ -120,7 +111,6 @@
         </p>
     </div>
 
-    <div id="loadingOverlay"><div class="spinner"></div><p>Stabilizing View...</p></div>
     <button id="sideVenueBtn">📍 GOOGLE MAPS</button>
     <button id="floatingBtn">PLAY</button>
     <div id="topLinksMenu">
@@ -132,9 +122,9 @@
     <a-scene mindar-image="imageTargetSrc: ./targets.mind; autoStart: true; filterMinCF: 0.01; filterBeta: 0.01;" 
          vr-mode-ui="enabled: false" device-orientation-permission-ui="enabled: false">
         <a-assets>
-    <video id="vid" src="./your-video.mp4" preload="metadata" crossorigin="anonymous" playsinline webkit-playsinline muted></video>
-    <img id="venueImg" src="./venue.jpg">
-</a-assets>
+            <video id="vid" crossorigin="anonymous" playsinline webkit-playsinline muted></video>
+            <img id="venueImg" src="./venue.jpg">
+        </a-assets>
         <a-camera position="0 0 0" look-controls="enabled: false">
             <a-cursor raycaster="objects: .clickable" cursor="fuse: false; rayOrigin: mouse;"></a-cursor>
         </a-camera>
@@ -156,147 +146,78 @@
     </a-scene>
 
     <script>
-        // ==================================================
-        // 🎛️ MASTER CONFIGURATION
-        // ==================================================
+        // CONFIG
         const CONFIG = {
-            
-            video: {
-                x: -0.009, y: -0.33,
-                width: 0.93, height: 0.54,
-                border: 0.01,
-                radius: [0.03, 0.03, 0.03, 0.03]
-            },
-
-            venue: {
-                x: -0.009, y: 0.32,
-                imgWidth: 0.68, imgHeight: 0.36,
-                border: 0.015,
-                // [TL, TR, BR, BL] - Top corners round, Bottom corners sharp
-                imgRadius: [0.04, 0.04, 0, 0] 
-            },
-
-            tag: {
-                height: 0.08,
-                color: '#002b5b',
-                // Bottom corners round, Top corners sharp
-                radius: [0, 0, 0.05, 0.05],
-                textScale: 1.3,     
-                textContent: "VENUE: INDIA HABITAT CENTRE"
-            },
-
+            video: { x: -0.009, y: -0.33, width: 0.93, height: 0.54, border: 0.01, radius: [0.03, 0.03, 0.03, 0.03] },
+            venue: { x: -0.009, y: 0.32, imgWidth: 0.68, imgHeight: 0.36, border: 0.015, imgRadius: [0.04, 0.04, 0, 0] },
+            tag: { height: 0.08, color: '#002b5b', radius: [0, 0, 0.05, 0.05], textScale: 1.3, textContent: "VENUE: INDIA HABITAT CENTRE" },
             sideButton: { right: '20px', top: '30%' }
         };
 
-        // ==================================================
-        // ⚙️ SYSTEM LOGIC
-        // ==================================================
-        
         function applyMasterConfig() {
-            const btn = document.querySelector('#sideVenueBtn');
-            btn.style.right = CONFIG.sideButton.right;
-            btn.style.top = CONFIG.sideButton.top;
-
-            // --- VIDEO SETUP ---
-            const vidGroup = document.querySelector('#videoGroup');
-            const vidBg = document.querySelector('#vidBg');
-            const vidPlane = document.querySelector('#vidPlane');
-            const vidMask = document.querySelector('#vidMask');
-
-            vidGroup.setAttribute('position', `${CONFIG.video.x} ${CONFIG.video.y} 0`);
-            const vBgW = CONFIG.video.width + (CONFIG.video.border * 2);
-            const vBgH = CONFIG.video.height + (CONFIG.video.border * 2);
-            const vRadius = CONFIG.video.radius.join(', ');
+            const btn = document.querySelector('#sideVenueBtn'); btn.style.right = CONFIG.sideButton.right; btn.style.top = CONFIG.sideButton.top;
             
-            vidBg.setAttribute('rounded-rect', `width: ${vBgW}; height: ${vBgH}; radius: ${vRadius}; color: white`);
-            vidPlane.setAttribute('width', CONFIG.video.width);
-            vidPlane.setAttribute('height', CONFIG.video.height);
-            vidMask.setAttribute('rounded-mask', `width: ${CONFIG.video.width}; height: ${CONFIG.video.height}; radius: ${vRadius}`);
+            // Video Setup
+            const vBgW = CONFIG.video.width + (CONFIG.video.border * 2); const vBgH = CONFIG.video.height + (CONFIG.video.border * 2);
+            document.querySelector('#videoGroup').setAttribute('position', `${CONFIG.video.x} ${CONFIG.video.y} 0`);
+            document.querySelector('#vidBg').setAttribute('rounded-rect', `width: ${vBgW}; height: ${vBgH}; radius: ${CONFIG.video.radius.join(', ')}; color: white`);
+            document.querySelector('#vidPlane').setAttribute('width', CONFIG.video.width); document.querySelector('#vidPlane').setAttribute('height', CONFIG.video.height);
+            document.querySelector('#vidMask').setAttribute('rounded-mask', `width: ${CONFIG.video.width}; height: ${CONFIG.video.height}; radius: ${CONFIG.video.radius.join(', ')}`);
 
-            // --- VENUE SETUP ---
-            const venueGroup = document.querySelector('#venueGroup');
-            const venueBg = document.querySelector('#venueBg');
-            const venueImage = document.querySelector('#venueImage');
-            const venueMask = document.querySelector('#venueMask');
-            const venueTagBg = document.querySelector('#venueTagBg');
-            const venueText = document.querySelector('#venueText');
-
-            venueGroup.setAttribute('position', `${CONFIG.venue.x} ${CONFIG.venue.y} 0.05`);
-
-            const imgW = CONFIG.venue.imgWidth;
-            const imgH = CONFIG.venue.imgHeight;
-            const border = CONFIG.venue.border;
-            const tagH = CONFIG.tag.height;
-            const cardW = imgW + (border * 2);
-            const cardH = imgH + tagH + (border * 2); 
+            // Venue Setup
+            const imgW = CONFIG.venue.imgWidth; const imgH = CONFIG.venue.imgHeight; const border = CONFIG.venue.border; const tagH = CONFIG.tag.height;
+            const cardW = imgW + (border * 2); const cardH = imgH + tagH + (border * 2); 
+            const bgRadiusStr = `${CONFIG.venue.imgRadius[0]+border}, ${CONFIG.venue.imgRadius[1]+border}, ${CONFIG.tag.radius[2]+border}, ${CONFIG.tag.radius[3]+border}`;
             
-            // --- FIX: BACKGROUND RADIUS CALCULATION ---
-            // The background needs to match the image rounding on top, and tag rounding on bottom.
-            // We construct the radius array dynamically based on your config.
-            const bgTL = CONFIG.venue.imgRadius[0] + border; 
-            const bgTR = CONFIG.venue.imgRadius[1] + border;
-            const bgBR = CONFIG.tag.radius[2] + border;
-            const bgBL = CONFIG.tag.radius[3] + border;
-            const bgRadiusStr = `${bgTL}, ${bgTR}, ${bgBR}, ${bgBL}`;
-
-            venueBg.setAttribute('rounded-rect', `width: ${cardW}; height: ${cardH}; radius: ${bgRadiusStr}; color: white`);
-
-            // Image Setup
+            document.querySelector('#venueGroup').setAttribute('position', `${CONFIG.venue.x} ${CONFIG.venue.y} 0.05`);
+            document.querySelector('#venueBg').setAttribute('rounded-rect', `width: ${cardW}; height: ${cardH}; radius: ${bgRadiusStr}; color: white`);
             const imgY = (tagH / 2); 
-            venueImage.setAttribute('position', `0 ${imgY} 0.01`);
-            venueImage.setAttribute('width', imgW);
-            venueImage.setAttribute('height', imgH);
-            const iRadius = CONFIG.venue.imgRadius.join(', ');
-            venueMask.setAttribute('position', `0 ${imgY} 0.02`);
-            venueMask.setAttribute('rounded-mask', `width: ${imgW}; height: ${imgH}; radius: ${iRadius}`);
-
-            // Tag Setup
+            document.querySelector('#venueImage').setAttribute('position', `0 ${imgY} 0.01`);
+            document.querySelector('#venueImage').setAttribute('width', imgW); document.querySelector('#venueImage').setAttribute('height', imgH);
+            document.querySelector('#venueMask').setAttribute('position', `0 ${imgY} 0.02`);
+            document.querySelector('#venueMask').setAttribute('rounded-mask', `width: ${imgW}; height: ${imgH}; radius: ${CONFIG.venue.imgRadius.join(', ')}`);
             const snapY = (imgY - (imgH/2)) - (tagH/2);
-            const tRadius = CONFIG.tag.radius.join(', ');
-            venueTagBg.setAttribute('position', `0 ${snapY} 0.01`);
-            venueTagBg.setAttribute('rounded-rect', `width: ${imgW}; height: ${tagH}; radius: ${tRadius}; color: ${CONFIG.tag.color}`);
-            
-            venueText.setAttribute('position', `0 ${snapY} 0.02`);
-            venueText.setAttribute('value', CONFIG.tag.textContent);
-            const wrap = 40 / CONFIG.tag.textScale; 
-            venueText.setAttribute('wrapCount', wrap);
-            venueText.setAttribute('width', imgW);
+            document.querySelector('#venueTagBg').setAttribute('position', `0 ${snapY} 0.01`);
+            document.querySelector('#venueTagBg').setAttribute('rounded-rect', `width: ${imgW}; height: ${tagH}; radius: ${CONFIG.tag.radius.join(', ')}; color: ${CONFIG.tag.color}`);
+            document.querySelector('#venueText').setAttribute('position', `0 ${snapY} 0.02`);
+            document.querySelector('#venueText').setAttribute('value', CONFIG.tag.textContent);
+            document.querySelector('#venueText').setAttribute('wrapCount', 40 / CONFIG.tag.textScale);
+            document.querySelector('#venueText').setAttribute('width', imgW);
         }
-
         document.addEventListener('DOMContentLoaded', applyMasterConfig);
 
-        // ==================================================
-        // 🚀 NEW INSTANT-LOAD LOGIC
-        // ==================================================
+        // ==========================================
+        // 🚀 ZERO-WAIT LOADING LOGIC
+        // ==========================================
         const startBtn = document.querySelector('#startBtn');
         const overlay = document.querySelector('#overlay');
-        const loadingOverlay = document.querySelector('#loadingOverlay');
+        const spinner = document.querySelector('#loadingSpinner');
+        const statusText = document.querySelector('#statusText');
         const video = document.querySelector("#vid");
-        const floatingBtn = document.querySelector('#floatingBtn');
 
-        // 1. EVENT: When Camera is ready (arReady), hide loading & show Start Button
-        // This runs automatically because autoStart is true
+        // 1. AR READY: Camera is warm, Show Button
         document.querySelector('a-scene').addEventListener("arReady", () => { 
-            loadingOverlay.style.display = 'none'; // Hide "Stabilizing..."
-            startBtn.style.display = 'block';      // Show "TAP TO ENTER"
+            spinner.style.display = 'none';
+            statusText.style.display = 'none';
+            startBtn.style.display = 'block';
         });
 
-        // 2. CLICK: Just hide the overlay (Camera is already running!)
+        // 2. CLICK: Inject Video Source -> Hide Overlay
         startBtn.addEventListener('click', () => {
-            overlay.style.display = 'none'; // Instant reveal
+            overlay.style.display = 'none'; 
             
-            // Unlock audio context (Required by browsers)
-            video.load(); 
-            video.play().then(() => {
-                video.pause(); // Pause immediately so it waits for the target
-            }).catch(e => console.log("Audio unlock skipped"));
+            // 🛑 INJECT VIDEO SRC NOW (This starts the download only when needed)
+            video.src = "./your-video.mp4"; 
+            video.load();
+            video.play().then(() => { video.pause(); });
         });
 
-        // --- STANDARD APP LOGIC ---
-        const targetEl = document.querySelector("#ar-target");
+        // APP LOGIC
+        const floatingBtn = document.querySelector('#floatingBtn');
         const venueGroup = document.querySelector('#venueGroup'); 
         const sideVenueBtn = document.querySelector('#sideVenueBtn');
         const topLinksMenu = document.querySelector('#topLinksMenu');
+        const targetEl = document.querySelector("#ar-target");
 
         floatingBtn.addEventListener('click', () => {
             if (video.paused) { video.muted = false; video.play(); floatingBtn.innerText = "PAUSE"; }
@@ -317,7 +238,6 @@
             video.pause(); 
         });
 
-        // GESTURES
         let tsX = 0, tsY = 0;
         document.addEventListener('touchstart', e => { tsX = e.changedTouches[0].screenX; tsY = e.changedTouches[0].screenY; });
         document.addEventListener('touchend', e => { 
