@@ -5,39 +5,47 @@
     <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-aframe.prod.js"></script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>NFPRC AR - Final Polish</title>
+    <title>NFPRC AR - Final Top-Down</title>
     
     <style>
         #overlay, #loadingOverlay {
             position: fixed; top: 0; left: 0; width: 100%; height: 100%;
             display: flex; flex-direction: column; justify-content: center; align-items: center;
-            color: white; font-family: sans-serif; text-align: center;
+            color: white; font-family: sans-serif; text-align: center; z-index: 9999;
         }
-        #overlay { background: rgba(0,0,0,0.95); z-index: 9999; }
-        #loadingOverlay { background: #002b5b; z-index: 9998; display: none; }
+        #overlay { background: rgba(0,0,0,0.95); }
+        #loadingOverlay { background: #002b5b; display: none; }
         
+        /* 2D FLOATING PLAY BUTTON */
+        #floatingBtn {
+            position: fixed; bottom: 15px; left: 50%; transform: translateX(-50%);
+            padding: 15px 40px; font-size: 18px; border-radius: 50px; 
+            border: 2px solid white; background: #002b5b; color: white;
+            font-weight: bold; cursor: pointer; display: none; z-index: 1000;
+        }
+
+        /* 2D TOP MENU (Triggered by Top-to-Bottom Swipe) */
+        #topLinksMenu {
+            position: fixed; top: -100px; /* Hidden above by default */
+            left: 0; width: 100%; padding: 20px 0;
+            background: rgba(0, 43, 91, 0.95); 
+            display: flex; justify-content: space-around; align-items: center; 
+            z-index: 1001; transition: top 0.3s ease-out; /* Smooth slide-down */
+            border-bottom: 2px solid white;
+        }
+        .socialLink {
+            color: white; text-decoration: none; font-weight: bold; 
+            font-size: 14px; padding: 10px 15px; border: 1px solid white; border-radius: 5px;
+        }
+
         #startBtn {
             padding: 20px 40px; font-size: 20px; border-radius: 50px; 
             border: none; background: #002b5b; color: white; cursor: pointer; font-weight: bold;
         }
-
-        /* THE CENTERED PLAY BUTTON: Fast & Reliable */
-        #htmlPlayOverlay {
-            position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
-            width: 80px; height: 80px; background: rgba(255, 255, 255, 0.8);
-            border-radius: 50%; display: none; 
-            justify-content: center; align-items: center; z-index: 1000; cursor: pointer;
-        }
-        #htmlPlayOverlay::after {
-            content: ''; display: block; border-style: solid;
-            border-width: 15px 0 15px 25px; border-color: transparent transparent transparent #002b5b;
-            margin-left: 5px;
-        }
-
         .spinner {
-            width: 50px; height: 50px; border: 5px solid rgba(255,255,255,0.3);
+            width: 40px; height: 40px; border: 4px solid rgba(255,255,255,0.3);
             border-radius: 50%; border-top-color: #fff;
-            animation: spin 1s ease-in-out infinite; margin-bottom: 20px;
+            animation: spin 1s ease-in-out infinite; margin-bottom: 15px;
         }
         @keyframes spin { to { transform: rotate(360deg); } }
     </style>
@@ -49,13 +57,20 @@
         <button id="startBtn">TAP TO ENTER AR</button>
     </div>
 
-    <div id="loadingOverlay"><div class="spinner"></div><p>Initializing...</p></div>
+    <div id="loadingOverlay"><div class="spinner"></div><p>Stabilizing View...</p></div>
 
-    <div id="htmlPlayOverlay"></div>
+    <div id="topLinksMenu">
+        <a href="https://nationfirstlr.substack.com" target="_blank" class="socialLink">INFO</a>
+        <a href="https://x.com/nfprc_ind" target="_blank" class="socialLink">X</a>
+        <a href="mailto:workshops@nationfirstpolicy.org" class="socialLink">EMAIL</a>
+    </div>
 
-    <a-scene mindar-image="imageTargetSrc: ./targets.mind; autoStart: false;" 
-             vr-mode-ui="enabled: false" device-orientation-permission-ui="enabled: false">
-        
+    <button id="floatingBtn">PLAY</button>
+
+    <a-scene 
+    mindar-image="imageTargetSrc: ./targets.mind; autoStart: false; filterMinCF:0.0001; filterBeta: 0.001;" 
+    vr-mode-ui="enabled: false" 
+    device-orientation-permission-ui="enabled: false">
         <a-assets>
             <video id="vid" src="./your-video.mp4" preload="auto" crossorigin="anonymous" playsinline webkit-playsinline muted></video>
         </a-assets>
@@ -68,65 +83,61 @@
             <a-video id="videoPlane" src="#vid" class="clickable" 
                      position="-0.01 -0.32 0.01" width="0.9" height="0.5">
             </a-video>
-
-            <a-entity id="buttonGroup" position="0.55 -0.32 0.02" visible="false">
-                <a-plane class="clickable" color="#002b5b" width="0.18" height="0.1" position="0 0.12 0" 
-                         text="value: INFO; align: center; color: #FFF; width: 0.8"
-                         onclick="window.open('https://nationfirstlr.substack.com', '_blank')"></a-plane>
-                <a-plane class="clickable" color="#002b5b" width="0.18" height="0.1" position="0 0 0" 
-                         text="value: X; align: center; color: #FFF; width: 0.8"
-                         onclick="window.open('https://x.com/nfprc_ind', '_blank')"></a-plane>
-                <a-plane class="clickable" color="#002b5b" width="0.18" height="0.1" position="0 -0.12 0" 
-                         text="value: EMAIL; align: center; color: #FFF; width: 0.8"
-                         onclick="window.location.href='mailto:workshops@nationfirstpolicy.org'"></a-plane>
-            </a-entity>
         </a-entity>
     </a-scene>
 
     <script>
-        const startBtn = document.querySelector('#startBtn'), overlay = document.querySelector('#overlay');
-        const loadingOverlay = document.querySelector('#loadingOverlay'), playOverlay = document.querySelector('#htmlPlayOverlay');
-        const sceneEl = document.querySelector('a-scene'), targetEl = document.querySelector("#ar-target");
-        const video = document.querySelector("#vid"), videoPlane = document.querySelector("#videoPlane");
-        const buttonGroup = document.querySelector("#buttonGroup");
+        const startBtn = document.querySelector('#startBtn'), floatingBtn = document.querySelector('#floatingBtn');
+        const video = document.querySelector("#vid"), targetEl = document.querySelector("#ar-target");
+        const topLinksMenu = document.querySelector('#topLinksMenu');
 
-        // The logic that worked before: Direct Video Control
         const toggleVideo = () => {
             if (video.paused) {
-                video.muted = false; // Unmute on interaction
+                video.muted = false; 
                 video.play();
-                playOverlay.style.display = 'none';
+                floatingBtn.innerText = "PAUSE";
             } else {
                 video.pause();
-                playOverlay.style.display = 'flex';
+                floatingBtn.innerText = "PLAY";
             }
         };
 
         startBtn.addEventListener('click', () => {
-            overlay.style.display = 'none';
-            loadingOverlay.style.display = 'flex';
-            video.load(); // Start buffering
-            sceneEl.systems['mindar-image-system'].start();
+            document.querySelector('#overlay').style.display = 'none';
+            document.querySelector('#loadingOverlay').style.display = 'flex';
+            video.load(); 
+            document.querySelector('a-scene').systems['mindar-image-system'].start();
         });
 
-        sceneEl.addEventListener("arReady", () => { loadingOverlay.style.display = 'none'; });
+        document.querySelector('a-scene').addEventListener("arReady", () => { 
+            document.querySelector('#loadingOverlay').style.display = 'none'; 
+            floatingBtn.style.display = 'block';
+        });
 
-        // Tapping the video or the play button works
-        playOverlay.addEventListener('click', toggleVideo);
-        videoPlane.addEventListener('click', toggleVideo);
+        floatingBtn.addEventListener('click', toggleVideo);
+        document.querySelector("#videoPlane").addEventListener('click', toggleVideo);
         
-        targetEl.addEventListener("targetFound", () => { if (video.paused) playOverlay.style.display = 'flex'; });
-        targetEl.addEventListener("targetLost", () => { 
-            playOverlay.style.display = 'none'; video.pause(); buttonGroup.setAttribute("visible", false); 
+        targetEl.addEventListener("targetFound", () => { 
+            floatingBtn.style.display = 'block';
         });
 
-        // Swipe Logic
-        let touchstartX = 0, touchendX = 0;
-        document.addEventListener('touchstart', e => touchstartX = e.changedTouches[0].screenX );
+        targetEl.addEventListener("targetLost", () => { 
+            floatingBtn.style.display = 'none';
+            topLinksMenu.style.top = '-100px'; // Hide menu on tracking loss
+            video.pause(); 
+        });
+
+        // UPDATED: VERTICAL SWIPE LOGIC (Top-to-Bottom)
+        let touchstartY = 0, touchendY = 0;
+        document.addEventListener('touchstart', e => touchstartY = e.changedTouches[0].screenY );
         document.addEventListener('touchend', e => { 
-            touchendX = e.changedTouches[0].screenX;
-            if (touchendX - touchstartX > 50) buttonGroup.setAttribute("visible", true);  
-            if (touchstartX - touchendX > 50) buttonGroup.setAttribute("visible", false); 
+            touchendY = e.changedTouches[0].screenY;
+            
+            // SWIPE DOWN (Top-to-Bottom) to Show
+            if (touchendY - touchstartY > 70) topLinksMenu.style.top = '0px';  
+            
+            // SWIPE UP (Bottom-to-Top) to Hide
+            if (touchstartY - touchendY > 70) topLinksMenu.style.top = '-100px'; 
         });
     </script>
 </body>
