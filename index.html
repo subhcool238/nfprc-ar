@@ -10,11 +10,11 @@
     <style>
         body { margin: 0; overflow: hidden; font-family: sans-serif; }
         
-        #overlay, #loadingOverlay {
-            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            display: flex; flex-direction: column; justify-content: center; align-items: center;
-            color: white; text-align: center; z-index: 9999;
-        }
+        #overlay, #loadingOverlay { 
+    background: #002b5b; 
+    display: flex; /* KEY CHANGE: Visible immediately on load */
+}
+        
         #overlay { background: rgba(0,0,0,0.95); }
         #loadingOverlay { background: #002b5b; display: none; }
         
@@ -46,8 +46,12 @@
             background: rgba(255,255,255,0.1);
         }
 
-        #startBtn { padding: 20px 40px; font-size: 20px; border-radius: 50px; border: none; background: #002b5b; color: white; cursor: pointer; font-weight: bold; }
-        .spinner { width: 40px; height: 40px; border: 4px solid rgba(255,255,255,0.3); border-radius: 50%; border-top-color: #fff; animation: spin 1s ease-in-out infinite; margin-bottom: 15px; }
+#startBtn { 
+    padding: 20px 40px; font-size: 20px; border-radius: 50px; 
+    border: none; background: #002b5b; color: white; 
+    cursor: pointer; font-weight: bold;
+    display: none; /* KEY CHANGE: Hidden until camera is ready */
+}        .spinner { width: 40px; height: 40px; border: 4px solid rgba(255,255,255,0.3); border-radius: 50%; border-top-color: #fff; animation: spin 1s ease-in-out infinite; margin-bottom: 15px; }
         @keyframes spin { to { transform: rotate(360deg); } }
     </style>
 
