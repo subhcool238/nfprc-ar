@@ -265,56 +265,72 @@
 
         document.addEventListener('DOMContentLoaded', applyMasterConfig);
 
-        // --- APP LOGIC ---
-        const startBtn = document.querySelector('#startBtn'), floatingBtn = document.querySelector('#floatingBtn');
-        const video = document.querySelector("#vid"), targetEl = document.querySelector("#ar-target");
-        const venueGroup = document.querySelector('#venueGroup'), sideVenueBtn = document.querySelector('#sideVenueBtn');
+        // ==================================================
+        // 🚀 NEW INSTANT-LOAD LOGIC
+        // ==================================================
+        const startBtn = document.querySelector('#startBtn');
+        const overlay = document.querySelector('#overlay');
+        const loadingOverlay = document.querySelector('#loadingOverlay');
+        const video = document.querySelector("#vid");
+        const floatingBtn = document.querySelector('#floatingBtn');
+
+        // 1. EVENT: When Camera is ready (arReady), hide loading & show Start Button
+        // This runs automatically because autoStart is true
+        document.querySelector('a-scene').addEventListener("arReady", () => { 
+            loadingOverlay.style.display = 'none'; // Hide "Stabilizing..."
+            startBtn.style.display = 'block';      // Show "TAP TO ENTER"
+        });
+
+        // 2. CLICK: Just hide the overlay (Camera is already running!)
+        startBtn.addEventListener('click', () => {
+            overlay.style.display = 'none'; // Instant reveal
+            
+            // Unlock audio context (Required by browsers)
+            video.load(); 
+            video.play().then(() => {
+                video.pause(); // Pause immediately so it waits for the target
+            }).catch(e => console.log("Audio unlock skipped"));
+        });
+
+        // --- STANDARD APP LOGIC ---
+        const targetEl = document.querySelector("#ar-target");
+        const venueGroup = document.querySelector('#venueGroup'); 
+        const sideVenueBtn = document.querySelector('#sideVenueBtn');
         const topLinksMenu = document.querySelector('#topLinksMenu');
 
-        const toggleVideo = () => {
+        floatingBtn.addEventListener('click', () => {
             if (video.paused) { video.muted = false; video.play(); floatingBtn.innerText = "PAUSE"; }
             else { video.pause(); floatingBtn.innerText = "PLAY"; }
-        };
-
-        startBtn.addEventListener('click', () => {
-            document.querySelector('#overlay').style.display = 'none';
-            document.querySelector('#loadingOverlay').style.display = 'flex';
-            video.load(); 
-            document.querySelector('a-scene').systems['mindar-image-system'].start();
         });
-
-        document.querySelector('a-scene').addEventListener("arReady", () => { 
-            document.querySelector('#loadingOverlay').style.display = 'none'; 
-            floatingBtn.style.display = 'block';
+        
+        sideVenueBtn.addEventListener('click', () => { window.open('https://goo.gl/maps/YOUR_LINK_HERE', '_blank'); });
+        
+        targetEl.addEventListener("targetFound", () => { 
+            floatingBtn.style.display = 'block'; 
         });
-
-        floatingBtn.addEventListener('click', toggleVideo);
-        sideVenueBtn.addEventListener('click', () => { window.open('https://maps.app.goo.gl/Mkx7hyUkjHbfzxkV8', '_blank'); });
-
-        targetEl.addEventListener("targetFound", () => { floatingBtn.style.display = 'block'; });
+        
         targetEl.addEventListener("targetLost", () => { 
             floatingBtn.style.display = 'none';
-            venueGroup.setAttribute("visible", false);
-            sideVenueBtn.style.display = 'none';
+            venueGroup.setAttribute("visible", false); 
+            sideVenueBtn.style.display = 'none'; 
             topLinksMenu.style.top = '-150px'; 
             video.pause(); 
         });
 
         // GESTURES
-        let touchstartX = 0, touchstartY = 0;
-        document.addEventListener('touchstart', e => { touchstartX = e.changedTouches[0].screenX; touchstartY = e.changedTouches[0].screenY; });
+        let tsX = 0, tsY = 0;
+        document.addEventListener('touchstart', e => { tsX = e.changedTouches[0].screenX; tsY = e.changedTouches[0].screenY; });
         document.addEventListener('touchend', e => { 
-            const diffX = e.changedTouches[0].screenX - touchstartX;
-            const diffY = e.changedTouches[0].screenY - touchstartY;
-            if (Math.abs(diffX) > Math.abs(diffY)) {
-                if (Math.abs(diffX) > 50) {
-                    const isVisible = venueGroup.getAttribute('visible');
-                    venueGroup.setAttribute("visible", !isVisible);
-                    sideVenueBtn.style.display = !isVisible ? 'block' : 'none';
+            const dX = e.changedTouches[0].screenX - tsX; const dY = e.changedTouches[0].screenY - tsY;
+            if (Math.abs(dX) > Math.abs(dY)) {
+                if (Math.abs(dX) > 50) {
+                    const vis = venueGroup.getAttribute('visible'); 
+                    venueGroup.setAttribute("visible", !vis); 
+                    sideVenueBtn.style.display = !vis ? 'block' : 'none';
                 }
             } else {
-                if (diffY > 50) topLinksMenu.style.top = '0px'; 
-                if (diffY < -50) topLinksMenu.style.top = '-150px'; 
+                if (dY > 50) topLinksMenu.style.top = '0px'; 
+                if (dY < -50) topLinksMenu.style.top = '-150px'; 
             }
         });
     </script>
