@@ -5,28 +5,35 @@
     <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-aframe.prod.js"></script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>NFPRC AR Workshop - Local Test</title>
+    <title>NFPRC AR - Final Polish</title>
     
     <style>
-        /* 1. Start Overlay */
-        #overlay {
+        #overlay, #loadingOverlay {
             position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(0,0,0,0.95); z-index: 9999;
             display: flex; flex-direction: column; justify-content: center; align-items: center;
             color: white; font-family: sans-serif; text-align: center;
         }
+        #overlay { background: rgba(0,0,0,0.95); z-index: 9999; }
+        #loadingOverlay { background: #002b5b; z-index: 9998; display: none; }
+        
         #startBtn {
             padding: 20px 40px; font-size: 20px; border-radius: 50px; 
             border: none; background: #002b5b; color: white; cursor: pointer; font-weight: bold;
         }
 
-        /* 2. Loading Screen */
-        #loadingOverlay {
-            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            background: #002b5b; z-index: 9998;
-            display: none; flex-direction: column; justify-content: center; align-items: center;
-            color: white; font-family: sans-serif;
+        /* THE CENTERED PLAY BUTTON: Fast & Reliable */
+        #htmlPlayOverlay {
+            position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            width: 80px; height: 80px; background: rgba(255, 255, 255, 0.8);
+            border-radius: 50%; display: none; 
+            justify-content: center; align-items: center; z-index: 1000; cursor: pointer;
         }
+        #htmlPlayOverlay::after {
+            content: ''; display: block; border-style: solid;
+            border-width: 15px 0 15px 25px; border-color: transparent transparent transparent #002b5b;
+            margin-left: 5px;
+        }
+
         .spinner {
             width: 50px; height: 50px; border: 5px solid rgba(255,255,255,0.3);
             border-radius: 50%; border-top-color: #fff;
@@ -38,23 +45,19 @@
 
 <body>
     <div id="overlay">
-        <h2 style="margin-bottom: 20px;">NFPRC AR Experience</h2>
+        <h2>NFPRC AR Experience</h2>
         <button id="startBtn">TAP TO ENTER AR</button>
-        <p style="margin-top: 15px; font-size: 14px; opacity: 0.8;">Grant camera access to begin</p>
     </div>
 
-    <div id="loadingOverlay">
-        <div class="spinner"></div>
-        <p>Initializing AR Engine...</p>
-    </div>
+    <div id="loadingOverlay"><div class="spinner"></div><p>Initializing...</p></div>
+
+    <div id="htmlPlayOverlay"></div>
 
     <a-scene mindar-image="imageTargetSrc: ./targets.mind; autoStart: false;" 
              vr-mode-ui="enabled: false" device-orientation-permission-ui="enabled: false">
         
         <a-assets>
-            <video id="vid" src="./your-video.mp4" 
-                   preload="auto" crossorigin="anonymous" 
-                   playsinline webkit-playsinline muted loop="false"></video>
+            <video id="vid" src="./your-video.mp4" preload="auto" crossorigin="anonymous" playsinline webkit-playsinline muted></video>
         </a-assets>
 
         <a-camera position="0 0 0" look-controls="enabled: false">
@@ -65,11 +68,6 @@
             <a-video id="videoPlane" src="#vid" class="clickable" 
                      position="-0.01 -0.32 0.01" width="0.9" height="0.5">
             </a-video>
-
-            <a-entity id="playButton3D" class="clickable" position="-0.01 -0.32 0.03" visible="false">
-                <a-circle color="white" radius="0.08" opacity="0.8"></a-circle>
-                <a-triangle color="#002b5b" vertex-a="0.04 0 0" vertex-b="-0.02 0.03 0" vertex-c="-0.02 -0.03 0" position="0.005 0 0.001"></a-triangle>
-            </a-entity>
 
             <a-entity id="buttonGroup" position="0.55 -0.32 0.02" visible="false">
                 <a-plane class="clickable" color="#002b5b" width="0.18" height="0.1" position="0 0.12 0" 
@@ -85,79 +83,51 @@
         </a-entity>
     </a-scene>
 
- <script>
-    const startBtn = document.querySelector('#startBtn');
-    const overlay = document.querySelector('#overlay');
-    const loadingOverlay = document.querySelector('#loadingOverlay');
-    const sceneEl = document.querySelector('a-scene');
-    const targetEl = document.querySelector("#ar-target");
-    const video = document.querySelector("#vid");
-    const videoPlane = document.querySelector("#videoPlane");
-    const playButton3D = document.querySelector("#playButton3D");
-    const buttonGroup = document.querySelector("#buttonGroup");
+    <script>
+        const startBtn = document.querySelector('#startBtn'), overlay = document.querySelector('#overlay');
+        const loadingOverlay = document.querySelector('#loadingOverlay'), playOverlay = document.querySelector('#htmlPlayOverlay');
+        const sceneEl = document.querySelector('a-scene'), targetEl = document.querySelector("#ar-target");
+        const video = document.querySelector("#vid"), videoPlane = document.querySelector("#videoPlane");
+        const buttonGroup = document.querySelector("#buttonGroup");
 
-    // 1. THE "WAKE UP" LOGIC
-    // Mobile browsers need to see a "play/pause" cycle during the first tap
-    startBtn.addEventListener('click', () => {
-        overlay.style.display = 'none';
-        loadingOverlay.style.display = 'flex';
-        
-        // This "unlocks" the video for the rest of the session
-        video.play().then(() => {
-            video.pause(); // Pause it immediately so it doesn't play in the background
-            console.log("Video unlocked and ready");
-        }).catch(e => console.log("Unlock failed, will try on next tap", e));
-
-        sceneEl.systems['mindar-image-system'].start();
-    });
-
-    // 2. THE TOGGLE FUNCTION
-    const toggleVideo = () => {
-        if (video.paused) {
-            video.muted = false; // Unmute now that user has interacted
-            
-            // Re-assign the source if it got stuck
-            if (video.readyState === 0) video.load(); 
-
-            video.play().then(() => {
-                playButton3D.setAttribute("visible", false);
-            }).catch(err => {
-                console.error("Critical play error:", err);
-                // Last ditch effort: play muted
-                video.muted = true;
+        // The logic that worked before: Direct Video Control
+        const toggleVideo = () => {
+            if (video.paused) {
+                video.muted = false; // Unmute on interaction
                 video.play();
-            });
-        } else {
-            video.pause();
-            playButton3D.setAttribute("visible", true);
-        }
-    };
+                playOverlay.style.display = 'none';
+            } else {
+                video.pause();
+                playOverlay.style.display = 'flex';
+            }
+        };
 
-    // 3. LISTENERS
-    sceneEl.addEventListener("arReady", () => { loadingOverlay.style.display = 'none'; });
-    
-    // We listen to both for maximum "tap surface"
-    videoPlane.addEventListener('click', toggleVideo);
-    playButton3D.addEventListener('click', toggleVideo);
-    
-    targetEl.addEventListener("targetFound", () => {
-        if (video.paused) playButton3D.setAttribute("visible", true);
-    });
+        startBtn.addEventListener('click', () => {
+            overlay.style.display = 'none';
+            loadingOverlay.style.display = 'flex';
+            video.load(); // Start buffering
+            sceneEl.systems['mindar-image-system'].start();
+        });
 
-    targetEl.addEventListener("targetLost", () => {
-        playButton3D.setAttribute("visible", false);
-        video.pause();
-        buttonGroup.setAttribute("visible", false);
-    });
+        sceneEl.addEventListener("arReady", () => { loadingOverlay.style.display = 'none'; });
 
-    // Reversed Swipe Logic
-    let touchstartX = 0, touchendX = 0;
-    document.addEventListener('touchstart', e => touchstartX = e.changedTouches[0].screenX );
-    document.addEventListener('touchend', e => { 
-        touchendX = e.changedTouches[0].screenX;
-        if (touchendX - touchstartX > 50) buttonGroup.setAttribute("visible", true);  
-        if (touchstartX - touchendX > 50) buttonGroup.setAttribute("visible", false); 
-    });
-</script>
+        // Tapping the video or the play button works
+        playOverlay.addEventListener('click', toggleVideo);
+        videoPlane.addEventListener('click', toggleVideo);
+        
+        targetEl.addEventListener("targetFound", () => { if (video.paused) playOverlay.style.display = 'flex'; });
+        targetEl.addEventListener("targetLost", () => { 
+            playOverlay.style.display = 'none'; video.pause(); buttonGroup.setAttribute("visible", false); 
+        });
+
+        // Swipe Logic
+        let touchstartX = 0, touchendX = 0;
+        document.addEventListener('touchstart', e => touchstartX = e.changedTouches[0].screenX );
+        document.addEventListener('touchend', e => { 
+            touchendX = e.changedTouches[0].screenX;
+            if (touchendX - touchstartX > 50) buttonGroup.setAttribute("visible", true);  
+            if (touchstartX - touchendX > 50) buttonGroup.setAttribute("visible", false); 
+        });
+    </script>
 </body>
 </html>
