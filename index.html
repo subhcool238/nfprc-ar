@@ -5,19 +5,35 @@
     <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-aframe.prod.js"></script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>NFPRC AR - Final Sync</title>
+    <title>NFPRC AR - Instant Load</title>
     
     <style>
         body { margin: 0; overflow: hidden; font-family: sans-serif; }
         
-        #overlay, #loadingOverlay {
+        /* UNIFIED OVERLAY FOR LOADING & START */
+        #overlay {
             position: fixed; top: 0; left: 0; width: 100%; height: 100%;
             display: flex; flex-direction: column; justify-content: center; align-items: center;
-            color: white; text-align: center; z-index: 9999;
+            background: rgba(0, 43, 91, 0.95); z-index: 9999;
+            transition: opacity 0.5s ease;
+            color: white; text-align: center;
         }
-        #overlay { background: rgba(0,0,0,0.95); }
-        #loadingOverlay { background: #002b5b; display: none; }
+
+        .spinner {
+            width: 40px; height: 40px; border: 4px solid rgba(255,255,255,0.3);
+            border-radius: 50%; border-top-color: #fff;
+            animation: spin 1s ease-in-out infinite; margin-bottom: 15px;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
         
+        /* BUTTONS */
+        #startBtn {
+            padding: 15px 40px; font-size: 18px; border-radius: 50px; 
+            border: 2px solid white; background: transparent; color: white;
+            font-weight: bold; cursor: pointer; display: none; /* Hidden until Ready */
+            margin-top: 20px;
+        }
+
         #floatingBtn {
             position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%);
             padding: 15px 40px; font-size: 18px; border-radius: 50px; 
@@ -45,32 +61,21 @@
             padding: 10px 20px; border: 1px solid white; border-radius: 20px;
             background: rgba(255,255,255,0.1);
         }
-
-        #startBtn { padding: 20px 40px; font-size: 20px; border-radius: 50px; border: none; background: #002b5b; color: white; cursor: pointer; font-weight: bold; }
-        .spinner { width: 40px; height: 40px; border: 4px solid rgba(255,255,255,0.3); border-radius: 50%; border-top-color: #fff; animation: spin 1s ease-in-out infinite; margin-bottom: 15px; }
-        @keyframes spin { to { transform: rotate(360deg); } }
     </style>
 
     <script>
       // 1. ADVANCED RECTANGLE
       AFRAME.registerComponent('rounded-rect', {
-        schema: { 
-            width: {type: 'number'}, 
-            height: {type: 'number'}, 
-            radius: {type: 'array', default: [0.05, 0.05, 0.05, 0.05]}, 
-            color: {type: 'color', default: 'white'} 
-        },
+        schema: { width: {type: 'number'}, height: {type: 'number'}, radius: {type: 'array', default: [0.05]}, color: {type: 'color', default: 'white'} },
         update: function () {
           if(this.mesh) this.el.object3D.remove(this.mesh);
-          const w = 1024; const h = (this.data.height / this.data.width) * w; // Increased res
-          const canvas = document.createElement('canvas');
-          canvas.width = w; canvas.height = h;
+          const w = 1024; const h = (this.data.height / this.data.width) * w;
+          const canvas = document.createElement('canvas'); canvas.width = w; canvas.height = h;
           const ctx = canvas.getContext('2d');
           ctx.fillStyle = this.data.color;
           const radii = this.data.radius.map(r => r * (w / this.data.width));
           ctx.beginPath(); ctx.roundRect(0, 0, w, h, radii); ctx.fill();
-          const texture = new THREE.CanvasTexture(canvas);
-          texture.anisotropy = 16; // Sharper texture
+          const texture = new THREE.CanvasTexture(canvas); texture.anisotropy = 16;
           const material = new THREE.MeshBasicMaterial({ map: texture, transparent: true });
           const geometry = new THREE.PlaneGeometry(this.data.width, this.data.height);
           this.mesh = new THREE.Mesh(geometry, material);
@@ -80,23 +85,17 @@
 
       // 2. ADVANCED MASK
       AFRAME.registerComponent('rounded-mask', {
-        schema: { 
-            width: {type: 'number'}, 
-            height: {type: 'number'}, 
-            radius: {type: 'array', default: [0.05, 0.05, 0.05, 0.05]} 
-        },
+        schema: { width: {type: 'number'}, height: {type: 'number'}, radius: {type: 'array', default: [0.05]} },
         update: function () {
           if(this.mesh) this.el.object3D.remove(this.mesh); 
-          const w = 1024; const h = (this.data.height / this.data.width) * w; // Increased res
-          const canvas = document.createElement('canvas');
-          canvas.width = w; canvas.height = h;
+          const w = 1024; const h = (this.data.height / this.data.width) * w;
+          const canvas = document.createElement('canvas'); canvas.width = w; canvas.height = h;
           const ctx = canvas.getContext('2d');
           ctx.fillStyle = 'white'; ctx.fillRect(0, 0, w, h);
           ctx.globalCompositeOperation = 'destination-out'; 
           const radii = this.data.radius.map(r => r * (w / this.data.width));
           ctx.beginPath(); ctx.roundRect(0, 0, w, h, radii); ctx.fill();
-          const texture = new THREE.CanvasTexture(canvas);
-          texture.anisotropy = 16;
+          const texture = new THREE.CanvasTexture(canvas); texture.anisotropy = 16;
           const material = new THREE.MeshBasicMaterial({ map: texture, transparent: true });
           const geometry = new THREE.PlaneGeometry(this.data.width, this.data.height);
           this.mesh = new THREE.Mesh(geometry, material);
@@ -108,15 +107,15 @@
 
 <body>
     <div id="overlay">
-        <h2>NFPRC AR Experience</h2>
+        <div class="spinner" id="loadingSpinner"></div>
+        <p id="statusText">Initializing Camera...</p>
         <button id="startBtn">TAP TO ENTER AR</button>
         <p style="margin-top: 20px; opacity: 0.7; font-size: 14px; line-height: 1.6;">
             ↔ Swipe LEFT/RIGHT for Venue<br>
             ↕ Swipe DOWN/UP for Links
         </p>
     </div>
-
-    <div id="loadingOverlay"><div class="spinner"></div><p>Stabilizing View...</p></div>
+    
     <button id="sideVenueBtn">📍 GOOGLE MAPS</button>
     <button id="floatingBtn">PLAY</button>
     <div id="topLinksMenu">
@@ -125,7 +124,7 @@
         <a href="mailto:workshops@nationfirstpolicy.org" class="socialLink">EMAIL</a>
     </div>
 
-    <a-scene mindar-image="imageTargetSrc: ./targets.mind; autoStart: false; filterMinCF: 0.01; filterBeta: 0.01;" 
+    <a-scene mindar-image="imageTargetSrc: ./targets.mind; autoStart: true; filterMinCF: 0.0001; filterBeta: 0.001;" 
              vr-mode-ui="enabled: false" device-orientation-permission-ui="enabled: false">
         <a-assets>
             <video id="vid" src="./your-video.mp4" preload="auto" crossorigin="anonymous" playsinline webkit-playsinline muted></video>
@@ -146,14 +145,14 @@
                 <a-image id="venueImage" src="#venueImg" position="0 0 0.01"></a-image>
                 <a-entity id="venueMask" position="0 0 0.02"></a-entity>
                 <a-entity id="venueTagBg" position="0 0 0.01"></a-entity>
-                <a-text id="venueText" value="VENUE: INDIA HABITAT CENTRE" align="center" color="white" position="0 0 0.02"></a-text>
+                <a-text id="venueText" value="VENUE" align="center" color="white" position="0 0 0.02"></a-text>
             </a-entity>
         </a-entity>
     </a-scene>
 
     <script>
         // ==================================================
-        // 🎛️ MASTER CONFIGURATION
+        // 🎛️ MASTER CONFIGURATION (Your Custom Settings)
         // ==================================================
         const CONFIG = {
             
@@ -168,14 +167,13 @@
                 x: -0.009, y: 0.32,
                 imgWidth: 0.68, imgHeight: 0.36,
                 border: 0.015,
-                // [TL, TR, BR, BL] - Top corners round, Bottom corners sharp
+                // [TL, TR, BR, BL]
                 imgRadius: [0.04, 0.04, 0, 0] 
             },
 
             tag: {
                 height: 0.08,
                 color: '#002b5b',
-                // Bottom corners round, Top corners sharp
                 radius: [0, 0, 0.05, 0.05],
                 textScale: 1.3,     
                 textContent: "VENUE: INDIA HABITAT CENTRE"
@@ -226,9 +224,6 @@
             const cardW = imgW + (border * 2);
             const cardH = imgH + tagH + (border * 2); 
             
-            // --- FIX: BACKGROUND RADIUS CALCULATION ---
-            // The background needs to match the image rounding on top, and tag rounding on bottom.
-            // We construct the radius array dynamically based on your config.
             const bgTL = CONFIG.venue.imgRadius[0] + border; 
             const bgTR = CONFIG.venue.imgRadius[1] + border;
             const bgBR = CONFIG.tag.radius[2] + border;
@@ -237,7 +232,6 @@
 
             venueBg.setAttribute('rounded-rect', `width: ${cardW}; height: ${cardH}; radius: ${bgRadiusStr}; color: white`);
 
-            // Image Setup
             const imgY = (tagH / 2); 
             venueImage.setAttribute('position', `0 ${imgY} 0.01`);
             venueImage.setAttribute('width', imgW);
@@ -246,7 +240,6 @@
             venueMask.setAttribute('position', `0 ${imgY} 0.02`);
             venueMask.setAttribute('rounded-mask', `width: ${imgW}; height: ${imgH}; radius: ${iRadius}`);
 
-            // Tag Setup
             const snapY = (imgY - (imgH/2)) - (tagH/2);
             const tRadius = CONFIG.tag.radius.join(', ');
             venueTagBg.setAttribute('position', `0 ${snapY} 0.01`);
@@ -261,30 +254,45 @@
 
         document.addEventListener('DOMContentLoaded', applyMasterConfig);
 
-        // --- APP LOGIC ---
-        const startBtn = document.querySelector('#startBtn'), floatingBtn = document.querySelector('#floatingBtn');
-        const video = document.querySelector("#vid"), targetEl = document.querySelector("#ar-target");
-        const venueGroup = document.querySelector('#venueGroup'), sideVenueBtn = document.querySelector('#sideVenueBtn');
+        // --- INSTANT LOADING LOGIC (THE FIX) ---
+        const startBtn = document.querySelector('#startBtn');
+        const overlay = document.querySelector('#overlay');
+        const spinner = document.querySelector('#loadingSpinner');
+        const statusText = document.querySelector('#statusText');
+        const video = document.querySelector("#vid");
+        const floatingBtn = document.querySelector('#floatingBtn');
+
+        // 1. When AR is ready, show "Start" button
+        document.querySelector('a-scene').addEventListener("arReady", () => { 
+            spinner.style.display = 'none';
+            statusText.style.display = 'none';
+            startBtn.style.display = 'block'; // Reveal button
+        });
+
+        // 2. Click Start -> Hide Overlay & Unlock Audio
+        startBtn.addEventListener('click', () => {
+            overlay.style.opacity = '0';
+            setTimeout(() => { overlay.style.display = 'none'; }, 500);
+            video.load(); video.play(); video.pause(); // Unlock audio
+        });
+
+        // 3. Error Handling
+        document.querySelector('a-scene').addEventListener("arError", (e) => {
+            statusText.innerText = "Error: " + (e.detail.error || "Check Permissions");
+            spinner.style.display = 'none';
+        });
+
+        // --- CONTROLS & GESTURES ---
+        const targetEl = document.querySelector("#ar-target");
+        const venueGroup = document.querySelector('#venueGroup'); 
+        const sideVenueBtn = document.querySelector('#sideVenueBtn');
         const topLinksMenu = document.querySelector('#topLinksMenu');
 
-        const toggleVideo = () => {
+        floatingBtn.addEventListener('click', () => {
             if (video.paused) { video.muted = false; video.play(); floatingBtn.innerText = "PAUSE"; }
             else { video.pause(); floatingBtn.innerText = "PLAY"; }
-        };
-
-        startBtn.addEventListener('click', () => {
-            document.querySelector('#overlay').style.display = 'none';
-            document.querySelector('#loadingOverlay').style.display = 'flex';
-            video.load(); 
-            document.querySelector('a-scene').systems['mindar-image-system'].start();
         });
 
-        document.querySelector('a-scene').addEventListener("arReady", () => { 
-            document.querySelector('#loadingOverlay').style.display = 'none'; 
-            floatingBtn.style.display = 'block';
-        });
-
-        floatingBtn.addEventListener('click', toggleVideo);
         sideVenueBtn.addEventListener('click', () => { window.open('https://maps.app.goo.gl/Mkx7hyUkjHbfzxkV8', '_blank'); });
 
         targetEl.addEventListener("targetFound", () => { floatingBtn.style.display = 'block'; });
@@ -297,20 +305,19 @@
         });
 
         // GESTURES
-        let touchstartX = 0, touchstartY = 0;
-        document.addEventListener('touchstart', e => { touchstartX = e.changedTouches[0].screenX; touchstartY = e.changedTouches[0].screenY; });
+        let tsX = 0, tsY = 0;
+        document.addEventListener('touchstart', e => { tsX = e.changedTouches[0].screenX; tsY = e.changedTouches[0].screenY; });
         document.addEventListener('touchend', e => { 
-            const diffX = e.changedTouches[0].screenX - touchstartX;
-            const diffY = e.changedTouches[0].screenY - touchstartY;
-            if (Math.abs(diffX) > Math.abs(diffY)) {
-                if (Math.abs(diffX) > 50) {
-                    const isVisible = venueGroup.getAttribute('visible');
-                    venueGroup.setAttribute("visible", !isVisible);
-                    sideVenueBtn.style.display = !isVisible ? 'block' : 'none';
+            const dX = e.changedTouches[0].screenX - tsX; const dY = e.changedTouches[0].screenY - tsY;
+            if (Math.abs(dX) > Math.abs(dY)) {
+                if (Math.abs(dX) > 50) {
+                    const vis = venueGroup.getAttribute('visible');
+                    venueGroup.setAttribute("visible", !vis);
+                    sideVenueBtn.style.display = !vis ? 'block' : 'none';
                 }
             } else {
-                if (diffY > 50) topLinksMenu.style.top = '0px'; 
-                if (diffY < -50) topLinksMenu.style.top = '-150px'; 
+                if (dY > 50) topLinksMenu.style.top = '0px'; 
+                if (dY < -50) topLinksMenu.style.top = '-150px'; 
             }
         });
     </script>
