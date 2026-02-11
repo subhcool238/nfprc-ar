@@ -220,7 +220,7 @@
             if (video.paused) { video.muted = false; video.play(); floatingBtn.innerText = "PAUSE"; }
             else { video.pause(); floatingBtn.innerText = "PLAY"; }
         });
-        sideVenueBtn.addEventListener('click', () => { window.open('https://goo.gl/maps/example', '_blank'); });
+        sideVenueBtn.addEventListener('click', () => { window.open('https://maps.app.goo.gl/HFXx9tQCd2ZUg96q8'); });
         document.querySelector("#ar-target").addEventListener("targetFound", () => { floatingBtn.style.display = 'block'; });
         document.querySelector("#ar-target").addEventListener("targetLost", () => { 
             floatingBtn.style.display = 'none'; venueGroup.setAttribute("visible", false); 
